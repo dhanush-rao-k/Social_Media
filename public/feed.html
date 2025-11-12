@@ -1,0 +1,87 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Home - Social Media</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">📱 Social Media</div>
+            <div class="nav-search">
+                <input type="text" id="searchInput" placeholder="Search users...">
+                <div id="searchResults" class="search-results"></div>
+            </div>
+            <div class="nav-links">
+                <a href="feed.html" class="nav-link active">🏠 Home</a>
+                <a href="messages.html" class="nav-link">💬 Messages <span id="unreadBadge" class="badge"></span></a>
+                <a href="#" class="nav-link" id="requestsLink">👥 Requests <span id="requestsBadge" class="badge"></span></a>
+                <a href="profile.html" class="nav-link" id="profileLink">👤 Profile</a>
+                <a href="#" class="nav-link" id="logoutBtn">🚪 Logout</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="feed-layout">
+            <!-- Stories Section -->
+            <div class="stories-container">
+                <h3>Stories</h3>
+                <div id="storiesSection" class="stories-scroll">
+                    <button class="story-item add-story" onclick="document.getElementById('storyInput').click()">
+                        <div class="story-avatar">➕</div>
+                        <span>Add Story</span>
+                    </button>
+                    <input type="file" id="storyInput" style="display: none;" accept="image/*">
+                </div>
+            </div>
+            
+            <!-- Main Feed -->
+            <div class="feed-main">
+                <!-- Create Post Section -->
+                <div class="create-post-box">
+                    <div class="create-post-header">
+                        <img src="https://via.placeholder.com/40" alt="Avatar" class="avatar-sm" id="userAvatarSmall">
+                        <input type="text" id="postInput" placeholder="What's on your mind?" class="post-input">
+                    </div>
+                    <div class="create-post-actions">
+                        <button class="btn btn-secondary" onclick="document.getElementById('mediaInput').click()">📷 Photo</button>
+                        <input type="file" id="mediaInput" style="display: none;" accept="image/*">
+                        <button class="btn btn-primary" id="createPostBtn">Post</button>
+                    </div>
+                    <div id="mediaPreview" style="display: none; margin-top: 10px;">
+                        <img id="previewImage" style="max-width: 100%; border-radius: 8px;">
+                    </div>
+                </div>
+                
+                <!-- Posts Feed -->
+                <div id="postsContainer">
+                    <div class="loading">Loading posts...</div>
+                </div>
+            </div>
+            
+            <!-- Sidebar -->
+            <div class="feed-sidebar">
+                <div class="widget">
+                    <h3>Suggestions</h3>
+                    <div id="suggestedUsers">
+                        <div class="loading">Loading suggestions...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Post Modal -->
+    <div id="postModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeModal()">&times;</span>
+            <div id="modalContent"></div>
+        </div>
+    </div>
+    
+    <script src="js/feed.js"></script>
+</body>
+</html>

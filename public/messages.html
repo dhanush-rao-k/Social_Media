@@ -1,0 +1,84 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Messages - Social Media</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">📱 Social Media</div>
+            <div class="nav-links">
+                <a href="feed.html" class="nav-link">🏠 Home</a>
+                <a href="messages.html" class="nav-link active">💬 Messages</a>
+                <a href="profile.html" class="nav-link">👤 Profile</a>
+                <a href="#" class="nav-link" id="logoutBtn">🚪 Logout</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="messages-layout">
+            <!-- Conversations List -->
+            <div class="conversations-panel">
+                <div class="panel-header">
+                    <h3>Messages</h3>
+                    <button class="btn btn-sm btn-primary" onclick="showNewMessageModal()">➕</button>
+                </div>
+                <div class="search-box">
+                    <input type="text" id="conversationSearch" placeholder="Search conversations...">
+                </div>
+                <div id="conversationsList">
+                    <div class="loading">Loading conversations...</div>
+                </div>
+            </div>
+            
+            <!-- Message Thread -->
+            <div class="messages-panel">
+                <div id="noConversation" class="empty-state">
+                    <h3>💬</h3>
+                    <p>Select a conversation to start messaging</p>
+                </div>
+                
+                <div id="conversationView" style="display: none;">
+                    <div class="conversation-header">
+                        <div class="conversation-user">
+                            <img src="https://via.placeholder.com/40" alt="Avatar" class="avatar-sm" id="chatAvatar">
+                            <div>
+                                <h4 id="chatUsername">Username</h4>
+                                <span class="text-muted" id="chatStatus">Active</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div id="messagesContainer" class="messages-container">
+                        <!-- Messages will be loaded here -->
+                    </div>
+                    
+                    <div class="message-input-container">
+                        <input type="text" id="messageInput" placeholder="Type a message..." class="message-input">
+                        <button class="btn btn-primary" id="sendMessageBtn">Send</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- New Message Modal -->
+    <div id="newMessageModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeNewMessageModal()">&times;</span>
+            <h2>New Message</h2>
+            <div class="form-group">
+                <label>Search User</label>
+                <input type="text" id="userSearchInput" placeholder="Search by username...">
+                <div id="userSearchResults" class="search-results-list"></div>
+            </div>
+        </div>
+    </div>
+    
+    <script src="js/messages.js"></script>
+</body>
+</html>

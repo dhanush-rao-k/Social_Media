@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Profile - Social Media</title>
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <div class="nav-brand">📱 Social Media</div>
+            <div class="nav-links">
+                <a href="feed.html" class="nav-link">🏠 Home</a>
+                <a href="messages.html" class="nav-link">💬 Messages</a>
+                <a href="profile.html" class="nav-link active">👤 Profile</a>
+                <a href="#" class="nav-link" id="logoutBtn">🚪 Logout</a>
+            </div>
+        </div>
+    </nav>
+    
+    <div class="container">
+        <div class="profile-container">
+            <!-- Profile Header -->
+            <div class="profile-header">
+                <div class="profile-cover"></div>
+                <div class="profile-info">
+                    <img src="https://via.placeholder.com/120" alt="Profile" class="profile-avatar" id="profileAvatar">
+                    <div class="profile-details">
+                        <h2 id="profileUsername">Username</h2>
+                        <p id="profileBio">Bio goes here...</p>
+                        <div class="profile-stats">
+                            <div class="stat">
+                                <strong id="postCount">0</strong>
+                                <span>Posts</span>
+                            </div>
+                            <div class="stat">
+                                <strong id="followerCount">0</strong>
+                                <span>Followers</span>
+                            </div>
+                            <div class="stat">
+                                <strong id="followingCount">0</strong>
+                                <span>Following</span>
+                            </div>
+                        </div>
+                        <div class="profile-actions">
+                            <button class="btn btn-primary" id="editProfileBtn">Edit Profile</button>
+                            <button class="btn btn-secondary" id="followBtn" style="display: none;">Follow</button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Profile Tabs -->
+            <div class="profile-tabs">
+                <button class="tab-btn active" data-tab="posts">Posts</button>
+                <button class="tab-btn" data-tab="followers">Followers</button>
+                <button class="tab-btn" data-tab="following">Following</button>
+            </div>
+            
+            <!-- Tab Content -->
+            <div class="tab-content">
+                <div id="postsTab" class="tab-pane active">
+                    <div id="userPosts">
+                        <div class="loading">Loading posts...</div>
+                    </div>
+                </div>
+                
+                <div id="followersTab" class="tab-pane">
+                    <div id="followersList">
+                        <div class="loading">Loading followers...</div>
+                    </div>
+                </div>
+                
+                <div id="followingTab" class="tab-pane">
+                    <div id="followingList">
+                        <div class="loading">Loading following...</div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Edit Profile Modal -->
+    <div id="editModal" class="modal">
+        <div class="modal-content">
+            <span class="modal-close" onclick="closeEditModal()">&times;</span>
+            <h2>Edit Profile</h2>
+            <form id="editProfileForm">
+                <div class="form-group">
+                    <label for="editBio">Bio</label>
+                    <textarea id="editBio" rows="4"></textarea>
+                </div>
+                <div class="form-group">
+                    <label for="editAvatar">Avatar URL</label>
+                    <input type="text" id="editAvatar" placeholder="https://...">
+                </div>
+                <div class="form-group">
+                    <label for="editPrivacy">Privacy</label>
+                    <select id="editPrivacy">
+                        <option value="public">Public</option>
+                        <option value="private">Private</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn btn-primary">Save Changes</button>
+            </form>
+        </div>
+    </div>
+    
+    <script src="js/profile.js"></script>
+</body>
+</html>
