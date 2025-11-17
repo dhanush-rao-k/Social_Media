@@ -9,9 +9,35 @@ import bcrypt
 from datetime import datetime
 import os
 from dotenv import load_dotenv
+import hashlib
+from pathlib import Path
 
 # Load environment variables
 load_dotenv()
+
+# Create uploads directory if it doesn't exist
+UPLOAD_DIR = Path("uploads")
+UPLOAD_DIR.mkdir(exist_ok=True)
+
+def save_uploaded_file(uploaded_file):
+    """Save uploaded file to local storage and return the path"""
+    if uploaded_file is None:
+        return None
+    
+    # Create unique filename using file hash
+    file_bytes = uploaded_file.getbuffer()
+    file_hash = hashlib.md5(file_bytes).hexdigest()
+    file_extension = os.path.splitext(uploaded_file.name)[1]
+    unique_filename = f"{file_hash}{file_extension}"
+    file_path = UPLOAD_DIR / unique_filename
+    
+    # Save file if it doesn't exist
+    if not file_path.exists():
+        with open(file_path, "wb") as f:
+            f.write(file_bytes)
+    
+    # Return relative path for storage in database
+    return f"uploads/{unique_filename}"
 
 # Database configuration
 DB_CONFIG = {
@@ -532,11 +558,10 @@ def show_feed_page():
         elif media_option == "Upload Image":
             uploaded_file = st.file_uploader("Choose an image", type=['png', 'jpg', 'jpeg', 'gif'])
             if uploaded_file:
-                # For demo purposes, using a placeholder URL
-                # In production, you'd upload to a server and get the URL
+                # Save file and get local path
                 st.image(uploaded_file, caption="Preview", use_container_width=True)
-                post_media = f"https://via.placeholder.com/800x600.png?text={uploaded_file.name}"
-                st.info("Note: Image upload simulation. In production, this would upload to cloud storage.")
+                post_media = save_uploaded_file(uploaded_file)
+                st.success(f"✅ File saved: {uploaded_file.name}")
         
         if st.button("Post", type="primary"):
             if post_content:
@@ -567,8 +592,26 @@ def show_feed_page():
                 st.caption(str(post.get('Timestamp', '')))
                 st.write(post['Content'])
                 
+                # Display media if it exists and is accessible
                 if post.get('Media'):
-                    st.image(post['Media'], use_container_width=True)
+                    media_url = post['Media']
+                    try:
+                        # Try to display the media
+                        if media_url.startswith(('http://', 'https://')):
+                            # External URL
+                            st.image(media_url, use_container_width=True)
+                        elif media_url.startswith('uploads/'):
+                            # Local file
+                            if os.path.exists(media_url):
+                                st.image(media_url, use_container_width=True)
+                            else:
+                                st.warning(f"📷 Image file not found: {media_url}")
+                        else:
+                            # Try to load as local file
+                            if os.path.exists(media_url):
+                                st.image(media_url, use_container_width=True)
+                    except Exception as e:
+                        st.warning(f"Could not display media: {str(e)}")
                 
                 # Actions
                 col_like, col_comment, col_share = st.columns([1, 1, 8])
@@ -615,9 +658,9 @@ def show_stories_page():
             uploaded_file = st.file_uploader("Choose an image", type=['png', 'jpg', 'jpeg', 'gif'], key="story_upload")
             if uploaded_file:
                 st.image(uploaded_file, caption="Preview", width=300)
-                # Simulated URL for demo
-                story_media = f"https://via.placeholder.com/600x800.png?text={uploaded_file.name}"
-                st.info("Note: Image upload simulation. In production, this would upload to cloud storage.")
+                # Save file and get local path
+                story_media = save_uploaded_file(uploaded_file)
+                st.success(f"✅ File saved: {uploaded_file.name}")
         
         if st.button("Post Story", type="primary"):
             if story_media:
@@ -689,11 +732,35 @@ def show_stories_page():
                 st.subheader(f"Story by {current_story['Username']}")
                 st.caption(f"Posted: {current_story['CreatedAt']}")
                 
-                # Display story media
-                if current_story['MediaType'] == 'image':
-                    st.image(current_story['MediaURL'], use_container_width=True)
-                else:
-                    st.video(current_story['MediaURL'])
+                # Display story media with better error handling
+                try:
+                    media_url = current_story['MediaURL']
+                    if media_url.startswith(('http://', 'https://')):
+                        # External URL
+                        if current_story['MediaType'] == 'image':
+                            st.image(media_url, use_container_width=True)
+                        else:
+                            st.video(media_url)
+                    elif media_url.startswith('uploads/'):
+                        # Local file
+                        if os.path.exists(media_url):
+                            if current_story['MediaType'] == 'image':
+                                st.image(media_url, use_container_width=True)
+                            else:
+                                st.video(media_url)
+                        else:
+                            st.warning(f"📷 Story file not found: {media_url}")
+                    else:
+                        # Try to load as local file
+                        if os.path.exists(media_url):
+                            if current_story['MediaType'] == 'image':
+                                st.image(media_url, use_container_width=True)
+                            else:
+                                st.video(media_url)
+                        else:
+                            st.warning(f"Could not locate story media: {media_url}")
+                except Exception as e:
+                    st.error(f"Error displaying story: {str(e)}")
                 
                 # Navigation
                 col_prev, col_info, col_next, col_close = st.columns([1, 2, 1, 1])
