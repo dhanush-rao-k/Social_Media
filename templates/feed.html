@@ -1,0 +1,316 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Feed - Social Media</title>
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+    <nav class="navbar">
+        <div class="nav-container">
+            <h1 class="nav-brand">Social Media</h1>
+            <div class="nav-links">
+                <a href="/feed" class="active">Feed</a>
+                <a href="/profile/{{ session.user_id }}">Profile</a>
+                <a href="/messages">Messages</a>
+                <a href="/logout">Logout</a>
+            </div>
+        </div>
+    </nav>
+
+    <div class="container">
+        <div class="feed-container">
+            <!-- Create Post Section -->
+            <div class="create-post">
+                <h2>Create Post</h2>
+                <textarea id="postContent" placeholder="What's on your mind?" rows="3"></textarea>
+                <button onclick="createPost()" class="btn btn-primary">Post</button>
+            </div>
+
+            <!-- Stories Section -->
+            <div class="stories-section">
+                <h3>Stories</h3>
+                <div class="story-upload">
+                    <input type="text" id="storyUrl" placeholder="Paste image/video URL" />
+                    <select id="storyType">
+                        <option value="image">Image</option>
+                        <option value="video">Video</option>
+                    </select>
+                    <button onclick="uploadStory()" class="btn btn-secondary">Upload Story</button>
+                </div>
+                <div id="storiesContainer" class="stories-container"></div>
+            </div>
+
+            <!-- Posts Feed -->
+            <div id="postsContainer" class="posts-container"></div>
+        </div>
+
+        <!-- Sidebar -->
+        <div class="sidebar">
+            <h3>Suggested Users</h3>
+            <div id="suggestedUsers"></div>
+        </div>
+    </div>
+
+    <script>
+        const userId = {{ session.user_id }};
+
+        // Load feed on page load
+        document.addEventListener('DOMContentLoaded', () => {
+            loadFeed();
+            loadStories();
+            loadSuggestedUsers();
+        });
+
+        async function loadFeed() {
+            try {
+                const response = await fetch(`/api/posts/feed/${userId}`);
+                const data = await response.json();
+                
+                const container = document.getElementById('postsContainer');
+                container.innerHTML = '';
+
+                if (data.success && data.posts.length > 0) {
+                    data.posts.forEach(post => {
+                        container.innerHTML += createPostHTML(post);
+                    });
+                } else {
+                    container.innerHTML = '<p class="no-content">No posts yet. Follow some users to see their posts!</p>';
+                }
+            } catch (error) {
+                console.error('Error loading feed:', error);
+            }
+        }
+
+        async function loadStories() {
+            try {
+                const res = await fetch(`/api/stories/followed/${userId}`);
+                const data = await res.json();
+                const container = document.getElementById('storiesContainer');
+                container.innerHTML = '';
+
+                if (data.success && data.stories.length > 0) {
+                    data.stories.forEach(story => {
+                        container.innerHTML += `
+                            <div class="story-item ${story.IsViewed ? 'viewed' : ''}" onclick="viewStory(${story.StoryID})">
+                                <img src="${story.ProfilePicture || '/static/img/default-avatar.png'}" class="profile-pic-small"/>
+                                <div class="story-info">
+                                    <span>${story.Username}</span>
+                                </div>
+                            </div>
+                        `;
+                    });
+                } else {
+                    container.innerHTML = '<p class="info-text">No stories yet.</p>';
+                }
+            } catch (e) { console.error('Error loading stories', e); }
+        }
+
+        async function viewStory(storyId) {
+            // mark as viewed
+            try {
+                await fetch(`/api/stories/view/${storyId}`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                loadStories();
+            } catch (e) { console.error(e); }
+        }
+
+        async function loadSuggestedUsers() {
+            const container = document.getElementById('suggestedUsers');
+            container.innerHTML = '<p class="info-text">Loading suggestions...</p>';
+            try {
+                const res = await fetch(`/api/users/suggested/${userId}`);
+                const data = await res.json();
+                container.innerHTML = '';
+                if (data.success && data.users.length > 0) {
+                    data.users.forEach(u => {
+                        container.innerHTML += `
+                            <div class="suggested-item">
+                                <img src="${u.ProfilePicture || '/static/img/default-avatar.png'}" class="profile-pic-small"/>
+                                <a href="/profile/${u.UserID}">${u.Username}</a>
+                                <button class="btn btn-secondary" onclick="follow(${u.UserID})">Follow</button>
+                            </div>
+                        `;
+                    });
+                } else {
+                    container.innerHTML = '<p class="info-text">No suggestions right now.</p>';
+                }
+            } catch (e) { console.error('Error loading suggestions', e); }
+        }
+
+        async function follow(otherId) {
+            try {
+                const res = await fetch(`/api/users/${otherId}/follow`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ follower_id: userId })
+                });
+                if (res.ok) {
+                    loadSuggestedUsers();
+                    loadFeed();
+                }
+            } catch (e) { console.error('follow error', e); }
+        }
+
+        async function uploadStory() {
+            const media_url = document.getElementById('storyUrl').value.trim();
+            const media_type = document.getElementById('storyType').value;
+            if (!media_url) { alert('Please provide a URL'); return; }
+            try {
+                const res = await fetch('/api/stories/upload', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, media_url, media_type })
+                });
+                const data = await res.json();
+                if (data.success) {
+                    document.getElementById('storyUrl').value = '';
+                    loadStories();
+                } else {
+                    alert('Failed to upload story');
+                }
+            } catch (e) { console.error('Upload story error', e); }
+        }
+
+        async function createPost() {
+            const content = document.getElementById('postContent').value.trim();
+            
+            if (!content) {
+                alert('Please write something!');
+                return;
+            }
+
+            try {
+                const response = await fetch('/api/posts/create', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, content })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    document.getElementById('postContent').value = '';
+                    loadFeed();
+                } else {
+                    alert('Failed to create post');
+                }
+            } catch (error) {
+                console.error('Error creating post:', error);
+                alert('An error occurred');
+            }
+        }
+
+        async function toggleLike(postId) {
+            try {
+                const response = await fetch(`/api/posts/${postId}/like`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId })
+                });
+                if (response.ok) {
+                    // Update UI count without reload
+                    const el = document.querySelector(`[data-post="${postId}"] .like-count`);
+                    if (el) {
+                        const current = parseInt(el.dataset.value || '0');
+                        const liked = el.classList.toggle('liked');
+                        const next = liked ? current + 1 : Math.max(0, current - 1);
+                        el.dataset.value = String(next);
+                        el.textContent = `❤️ ${next} Likes`;
+                    }
+                }
+            } catch (error) {
+                console.error('Error toggling like:', error);
+            }
+        }
+
+        async function toggleComments(postId) {
+            const box = document.querySelector(`[data-post="${postId}"] .comments-box`);
+            if (!box) return;
+            if (box.dataset.loaded !== 'true') {
+                await loadComments(postId);
+                box.dataset.loaded = 'true';
+            }
+            box.classList.toggle('hidden');
+        }
+
+        async function loadComments(postId) {
+            try {
+                const res = await fetch(`/api/posts/${postId}/comments`);
+                const data = await res.json();
+                const list = document.querySelector(`[data-post="${postId}"] .comments-list`);
+                if (data.success && Array.isArray(data.comments)) {
+                    list.innerHTML = data.comments.map(c => `<div class="comment-item"><strong>${c.Username || 'User'}:</strong> ${c.Content}</div>`).join('');
+                } else {
+                    list.innerHTML = '<div class="text-muted">No comments yet</div>';
+                }
+            } catch(e){ console.error('load comments', e); }
+        }
+
+        async function addComment(postId) {
+            const input = document.querySelector(`[data-post="${postId}"] .comment-input-field`);
+            if (!input) return;
+            const content = input.value.trim();
+            if (!content) return;
+            try {
+                const response = await fetch(`/api/posts/${postId}/comments`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ user_id: userId, content })
+                });
+                if (response.ok) {
+                    input.value = '';
+                    // Update count and list
+                    const el = document.querySelector(`[data-post="${postId}"] .comment-count`);
+                    if (el) {
+                        const val = parseInt(el.dataset.value || '0') + 1;
+                        el.dataset.value = String(val);
+                        el.textContent = `💬 ${val} Comments`;
+                    }
+                    loadComments(postId);
+                }
+            } catch (error) {
+                console.error('Error adding comment:', error);
+            }
+        }
+
+        function createPostHTML(post) {
+            return `
+                <div class="post-card" data-post="${post.PostID}">
+                    <div class="post-header">
+                        <img src="${post.ProfilePicture || '/static/img/default-avatar.png'}" 
+                             alt="${post.Username}" class="profile-pic-small">
+                        <div>
+                            <h4><a href="/profile/${post.UserID}">${post.Username}</a></h4>
+                            <p class="post-time">${new Date(post.CreatedAt || post.Timestamp).toLocaleString()}</p>
+                        </div>
+                    </div>
+                    <div class="post-content">
+                        <p>${post.Content}</p>
+                        ${post.Media ? `<img src="${post.Media}" alt="Post media" class="post-media">` : ''}
+                    </div>
+                    <div class="post-actions">
+                        <button onclick="toggleLike(${post.PostID})" class="btn btn-action like-count" data-value="${post.LikeCount || 0}">
+                            ❤️ ${post.LikeCount || 0} Likes
+                        </button>
+                        <button onclick="toggleComments(${post.PostID})" class="btn btn-action comment-count" data-value="${post.CommentCount || 0}">
+                            💬 ${post.CommentCount || 0} Comments
+                        </button>
+                    </div>
+                    <div class="comments-box hidden">
+                        <div class="comments-list"></div>
+                        <div class="comment-box">
+                            <input class="comment-input-field" placeholder="Write a comment..."/>
+                            <button class="btn btn-secondary" onclick="addComment(${post.PostID})">Comment</button>
+                        </div>
+                    </div>
+                </div>
+            `;
+        }
+    </script>
+</body>
+</html>

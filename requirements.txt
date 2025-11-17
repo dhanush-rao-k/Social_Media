@@ -1,0 +1,6 @@
+Flask==3.1.2
+mysql-connector-python==8.2.0
+bcrypt==5.0.0
+python-dotenv==1.2.1
+streamlit==1.29.0
+Werkzeug==3.1.3
