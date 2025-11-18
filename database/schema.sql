@@ -111,6 +111,19 @@ CREATE TABLE Followers (
     UNIQUE KEY unique_follow (FollowerUserID, FollowingUserID)
 );
 
+-- Follow Requests Table (for private accounts)
+CREATE TABLE FollowRequests (
+    RequestID INT PRIMARY KEY AUTO_INCREMENT,
+    RequesterUserID INT,
+    TargetUserID INT,
+    Status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+    RequestedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    RespondedAt TIMESTAMP NULL,
+    FOREIGN KEY (RequesterUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+    FOREIGN KEY (TargetUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+    UNIQUE KEY unique_request (RequesterUserID, TargetUserID)
+);
+
 -- Stored Procedures
 DELIMITER //
 

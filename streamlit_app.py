@@ -278,15 +278,271 @@ def get_user_profile(user_id, viewer_id):
     return None
 
 def toggle_follow(follower_id, following_id):
-    """Toggle follow"""
+    """Toggle follow - check if target user is private"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Check if target user is private
+            cursor.execute('SELECT PrivacySettings FROM Users WHERE UserID = %s', (following_id,))
+            user = cursor.fetchone()
+            
+            if not user:
+                cursor.close()
+                conn.close()
+                return False
+            
+            is_private = user['PrivacySettings'] == 'private'
+            
+            # Check if already following
+            cursor.execute('''
+                SELECT FollowerID FROM Followers 
+                WHERE FollowerUserID = %s AND FollowingUserID = %s
+            ''', (follower_id, following_id))
+            
+            already_following = cursor.fetchone() is not None
+            
+            if already_following:
+                # Unfollow
+                cursor.execute('''
+                    DELETE FROM Followers 
+                    WHERE FollowerUserID = %s AND FollowingUserID = %s
+                ''', (follower_id, following_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return True
+            
+            # If target is private, send follow request instead
+            if is_private:
+                return send_follow_request(follower_id, following_id)
+            else:
+                # If target is public, follow directly
+                cursor.execute('''
+                    INSERT INTO Followers (FollowerUserID, FollowingUserID)
+                    VALUES (%s, %s)
+                ''', (follower_id, following_id))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return True
+        except Error as e:
+            st.error(f"Follow error: {e}")
+            cursor.close()
+            conn.close()
+    return False
+
+def send_follow_request(requester_id, target_id):
+    """Send follow request to private account"""
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor()
-        cursor.callproc('ToggleFollow', [follower_id, following_id])
-        conn.commit()
-        cursor.close()
-        conn.close()
-        return True
+        try:
+            # First ensure FollowRequests table exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS FollowRequests (
+                    RequestID INT PRIMARY KEY AUTO_INCREMENT,
+                    RequesterUserID INT,
+                    TargetUserID INT,
+                    Status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+                    RequestedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    RespondedAt TIMESTAMP NULL,
+                    FOREIGN KEY (RequesterUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    FOREIGN KEY (TargetUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    UNIQUE KEY unique_request (RequesterUserID, TargetUserID)
+                )
+            """)
+            conn.commit()
+            
+            # Now insert the follow request
+            cursor.execute('''
+                INSERT INTO FollowRequests (RequesterUserID, TargetUserID, Status)
+                VALUES (%s, %s, 'pending')
+                ON DUPLICATE KEY UPDATE Status = 'pending', RequestedAt = NOW()
+            ''', (requester_id, target_id))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"Follow request error: {e}")
+            cursor.close()
+            conn.close()
+    return False
+
+def get_follow_request_status(requester_id, target_id):
+    """Get follow request status"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Ensure table exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS FollowRequests (
+                    RequestID INT PRIMARY KEY AUTO_INCREMENT,
+                    RequesterUserID INT,
+                    TargetUserID INT,
+                    Status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+                    RequestedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    RespondedAt TIMESTAMP NULL,
+                    FOREIGN KEY (RequesterUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    FOREIGN KEY (TargetUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    UNIQUE KEY unique_request (RequesterUserID, TargetUserID)
+                )
+            """)
+            conn.commit()
+            
+            # Check if already following
+            cursor.execute('''
+                SELECT FollowerID FROM Followers 
+                WHERE FollowerUserID = %s AND FollowingUserID = %s
+            ''', (requester_id, target_id))
+            
+            if cursor.fetchone():
+                cursor.close()
+                conn.close()
+                return 'following'
+            
+            # Check follow request status
+            cursor.execute('''
+                SELECT Status FROM FollowRequests 
+                WHERE RequesterUserID = %s AND TargetUserID = %s
+            ''', (requester_id, target_id))
+            
+            result = cursor.fetchone()
+            cursor.close()
+            conn.close()
+            return result['Status'] if result else 'not_following'
+        except Error as e:
+            cursor.close()
+            conn.close()
+            return 'error'
+    return 'error'
+
+def get_pending_follow_requests(user_id):
+    """Get pending follow requests for user"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        try:
+            # Ensure table exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS FollowRequests (
+                    RequestID INT PRIMARY KEY AUTO_INCREMENT,
+                    RequesterUserID INT,
+                    TargetUserID INT,
+                    Status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+                    RequestedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    RespondedAt TIMESTAMP NULL,
+                    FOREIGN KEY (RequesterUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    FOREIGN KEY (TargetUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    UNIQUE KEY unique_request (RequesterUserID, TargetUserID)
+                )
+            """)
+            conn.commit()
+            
+            cursor.execute('''
+                SELECT 
+                    fr.RequestID,
+                    fr.RequesterUserID,
+                    u.Username,
+                    u.Avatar,
+                    u.Bio,
+                    fr.RequestedAt
+                FROM FollowRequests fr
+                JOIN Users u ON fr.RequesterUserID = u.UserID
+                WHERE fr.TargetUserID = %s AND fr.Status = 'pending'
+                ORDER BY fr.RequestedAt DESC
+            ''', (user_id,))
+            requests = cursor.fetchall()
+            cursor.close()
+            conn.close()
+            return requests
+        except Error:
+            cursor.close()
+            conn.close()
+            return []
+    return []
+
+def accept_follow_request(request_id, requester_id, target_id):
+    """Accept follow request"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            # Ensure table exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS FollowRequests (
+                    RequestID INT PRIMARY KEY AUTO_INCREMENT,
+                    RequesterUserID INT,
+                    TargetUserID INT,
+                    Status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+                    RequestedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    RespondedAt TIMESTAMP NULL,
+                    FOREIGN KEY (RequesterUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    FOREIGN KEY (TargetUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    UNIQUE KEY unique_request (RequesterUserID, TargetUserID)
+                )
+            """)
+            conn.commit()
+            
+            # Update request status
+            cursor.execute('''
+                UPDATE FollowRequests SET Status = 'accepted', RespondedAt = NOW()
+                WHERE RequestID = %s
+            ''', (request_id,))
+            
+            # Add to followers
+            cursor.execute('''
+                INSERT INTO Followers (FollowerUserID, FollowingUserID)
+                VALUES (%s, %s)
+                ON DUPLICATE KEY UPDATE FollowedAt = NOW()
+            ''', (requester_id, target_id))
+            
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"Accept error: {e}")
+            cursor.close()
+            conn.close()
+    return False
+
+def reject_follow_request(request_id):
+    """Reject follow request"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            # Ensure table exists
+            cursor.execute("""
+                CREATE TABLE IF NOT EXISTS FollowRequests (
+                    RequestID INT PRIMARY KEY AUTO_INCREMENT,
+                    RequesterUserID INT,
+                    TargetUserID INT,
+                    Status ENUM('pending', 'accepted', 'rejected') DEFAULT 'pending',
+                    RequestedAt TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    RespondedAt TIMESTAMP NULL,
+                    FOREIGN KEY (RequesterUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    FOREIGN KEY (TargetUserID) REFERENCES Users(UserID) ON DELETE CASCADE,
+                    UNIQUE KEY unique_request (RequesterUserID, TargetUserID)
+                )
+            """)
+            conn.commit()
+            
+            cursor.execute('''
+                UPDATE FollowRequests SET Status = 'rejected', RespondedAt = NOW()
+                WHERE RequestID = %s
+            ''', (request_id,))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"Reject error: {e}")
+            cursor.close()
+            conn.close()
     return False
 
 def search_users(query):
@@ -907,6 +1163,47 @@ def show_profile_page():
         
         st.divider()
         
+        # Follow Requests Section (if account is private)
+        if current_privacy == "private":
+            with st.expander("📬 Follow Requests", expanded=False):
+                pending_requests = get_pending_follow_requests(st.session_state.user_id)
+                
+                if pending_requests:
+                    st.write(f"You have **{len(pending_requests)}** pending follow request(s):")
+                    st.divider()
+                    
+                    for req in pending_requests:
+                        col1, col2, col3, col4 = st.columns([1, 4, 1, 1])
+                        
+                        with col1:
+                            if req.get('Avatar'):
+                                st.image(req['Avatar'], width=50)
+                            else:
+                                st.write("👤")
+                        
+                        with col2:
+                            st.markdown(f"**{req['Username']}**")
+                            st.caption(f"{req.get('Bio', '')[:50]}...")
+                            st.caption(f"🕐 Requested: {req['RequestedAt']}")
+                        
+                        with col3:
+                            if st.button("✅ Accept", key=f"accept_{req['RequestID']}", type="primary"):
+                                if accept_follow_request(req['RequestID'], req['RequesterUserID'], st.session_state.user_id):
+                                    st.success(f"Accepted follow request from {req['Username']}!")
+                                    st.rerun()
+                        
+                        with col4:
+                            if st.button("❌ Reject", key=f"reject_{req['RequestID']}", type="secondary"):
+                                if reject_follow_request(req['RequestID']):
+                                    st.info(f"Rejected follow request from {req['Username']}")
+                                    st.rerun()
+                        
+                        st.divider()
+                else:
+                    st.info("No pending follow requests. Your account is ready to accept new followers!")
+        
+        st.divider()
+        
         # Get and display user posts
         user_posts = get_user_posts(st.session_state.user_id)
         
@@ -951,13 +1248,29 @@ def show_search_page():
                 
                 with col2:
                     st.markdown(f"**{user['Username']}**")
-                    st.caption(user.get('Bio', ''))
+                    privacy_icon = "🔒" if user.get('PrivacySettings') == 'private' else "🌐"
+                    st.caption(f"{privacy_icon} {user.get('Bio', '')}")
                 
                 with col3:
                     if user['UserID'] != st.session_state.user_id:
-                        if st.button("Follow", key=f"follow_{user['UserID']}"):
-                            toggle_follow(st.session_state.user_id, user['UserID'])
-                            st.success("Followed!")
+                        # Get follow status
+                        status = get_follow_request_status(st.session_state.user_id, user['UserID'])
+                        
+                        if status == 'following':
+                            if st.button("✅ Following", key=f"follow_{user['UserID']}", type="secondary"):
+                                toggle_follow(st.session_state.user_id, user['UserID'])
+                                st.success("Unfollowed!")
+                                st.rerun()
+                        elif status == 'pending':
+                            st.button("⏳ Requested", key=f"follow_{user['UserID']}", disabled=True)
+                        else:
+                            if st.button("Follow", key=f"follow_{user['UserID']}", type="primary"):
+                                if toggle_follow(st.session_state.user_id, user['UserID']):
+                                    if user.get('PrivacySettings') == 'private':
+                                        st.success("Follow request sent!")
+                                    else:
+                                        st.success("Followed!")
+                                    st.rerun()
                 
                 st.divider()
         else:
