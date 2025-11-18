@@ -109,23 +109,70 @@ def login_user(username, password):
         conn.close()
     return False
 
-def register_user(username, email, password, bio=''):
+def register_user(username, email, password, bio='', privacy_setting='public'):
     """Register new user"""
     hashed = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt())
     conn = get_db_connection()
     if conn:
         cursor = conn.cursor()
         try:
-            cursor.callproc('RegisterUser', [username, email, hashed.decode('utf-8'), bio])
+            # Use PasswordHash column name (matching procedures)
+            cursor.execute('''
+                INSERT INTO Users (Username, Email, PasswordHash, Bio, PrivacySettings, CreatedAt)
+                VALUES (%s, %s, %s, %s, %s, NOW())
+            ''', (username, email, hashed.decode('utf-8'), bio, privacy_setting))
             conn.commit()
             cursor.close()
             conn.close()
             return True
         except Error as e:
-            st.error(f"Registration failed: {e}")
+            # Fallback: Try with Password column if PasswordHash fails
+            try:
+                cursor = conn.cursor()
+                cursor.execute('''
+                    INSERT INTO Users (Username, Email, Password, Bio, PrivacySettings, CreatedAt)
+                    VALUES (%s, %s, %s, %s, %s, NOW())
+                ''', (username, email, hashed.decode('utf-8'), bio, privacy_setting))
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return True
+            except Error as e2:
+                st.error(f"Registration failed: {e2}")
+                cursor.close()
+                conn.close()
+    return False
+
+def update_privacy_setting(user_id, privacy_setting):
+    """Update user privacy setting"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            cursor.execute('''
+                UPDATE Users SET PrivacySettings = %s WHERE UserID = %s
+            ''', (privacy_setting, user_id))
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Error as e:
+            st.error(f"Failed to update privacy setting: {e}")
             cursor.close()
             conn.close()
     return False
+
+def get_user_privacy_setting(user_id):
+    """Get user's privacy setting"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor(dictionary=True)
+        cursor.execute('SELECT PrivacySettings FROM Users WHERE UserID = %s', (user_id,))
+        result = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        return result['PrivacySettings'] if result else 'public'
+    return 'public'
 
 def get_user_feed(user_id, limit=50):
     """Get user feed"""
@@ -535,8 +582,20 @@ def show_login_page():
         reg_password = st.text_input("Password", type="password", key="reg_password")
         reg_bio = st.text_area("Bio (optional)", key="reg_bio")
         
+        # Privacy setting during registration
+        st.write("**Account Privacy:**")
+        is_private = st.checkbox("🔒 Make Account Private", key="reg_private", 
+                                help="Private accounts require approval for followers")
+        
+        privacy_setting = "private" if is_private else "public"
+        
+        if is_private:
+            st.info("🔒 Your account will be private. People can follow you only with your approval.")
+        else:
+            st.info("🌐 Your account will be public. Anyone can follow you.")
+        
         if st.button("Register", type="primary"):
-            if register_user(reg_username, reg_email, reg_password, reg_bio):
+            if register_user(reg_username, reg_email, reg_password, reg_bio, privacy_setting):
                 st.success("Registration successful! Please login.")
             else:
                 st.error("Registration failed")
@@ -813,7 +872,40 @@ def show_profile_page():
             col_stats3.metric("Following", profile.get('FollowingCount', 0))
         
         st.divider()
-        st.subheader("📝 My Posts")
+        
+        # Privacy Settings Section
+        with st.expander("🔐 Privacy Settings", expanded=False):
+            current_privacy = get_user_privacy_setting(st.session_state.user_id)
+            
+            st.write("**Current Status:**")
+            if current_privacy == "private":
+                st.write("🔒 **Private Account**")
+                st.caption("Your account is private. People need your approval to follow.")
+            else:
+                st.write("🌐 **Public Account**")
+                st.caption("Your account is public. Anyone can follow you.")
+            
+            st.divider()
+            
+            # Toggle button
+            new_privacy = st.radio(
+                "Change Privacy Setting:",
+                ["Public 🌐", "Private 🔒"],
+                index=0 if current_privacy == "public" else 1,
+                key="privacy_radio"
+            )
+            
+            privacy_value = "public" if "Public" in new_privacy else "private"
+            
+            if privacy_value != current_privacy:
+                if st.button("✅ Update Privacy Setting", type="primary", key="save_privacy"):
+                    if update_privacy_setting(st.session_state.user_id, privacy_value):
+                        st.success(f"✅ Account is now {privacy_value}!")
+                        st.rerun()
+                    else:
+                        st.error("Failed to update privacy setting")
+        
+        st.divider()
         
         # Get and display user posts
         user_posts = get_user_posts(st.session_state.user_id)

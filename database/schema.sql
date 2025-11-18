@@ -7,7 +7,7 @@ CREATE TABLE Users (
     UserID INT PRIMARY KEY AUTO_INCREMENT,
     Username VARCHAR(50) UNIQUE NOT NULL,
     Email VARCHAR(100) UNIQUE NOT NULL,
-    Password VARCHAR(255) NOT NULL, -- store hashed password
+    PasswordHash VARCHAR(255) NOT NULL, -- store hashed password with bcrypt
     Bio TEXT,
     Avatar VARCHAR(255),
     PrivacySettings VARCHAR(50) DEFAULT 'public',
@@ -197,7 +197,7 @@ DELIMITER ;
 -- Hashed with bcrypt (10 rounds)
 
 -- Insert Sample Users
-INSERT INTO Users (Username, Email, Password, Bio, Avatar, PrivacySettings) VALUES
+INSERT INTO Users (Username, Email, PasswordHash, Bio, Avatar, PrivacySettings) VALUES
 ('john_doe', 'john@example.com', '$2b$10$qWh86.NgYIuV51/IcykytO/HLY3cg/OgIS1N6PCRrd323yN6LE6GO', 'Software developer | Coffee enthusiast ☕ | Love to code and travel 🌍', 'https://i.pravatar.cc/150?img=12', 'public'),
 ('jane_smith', 'jane@example.com', '$2b$10$qWh86.NgYIuV51/IcykytO/HLY3cg/OgIS1N6PCRrd323yN6LE6GO', 'Creative designer 🎨 | UI/UX Expert | Making the web beautiful', 'https://i.pravatar.cc/150?img=5', 'public'),
 ('bob_wilson', 'bob@example.com', '$2b$10$qWh86.NgYIuV51/IcykytO/HLY3cg/OgIS1N6PCRrd323yN6LE6GO', 'Tech enthusiast 💻 | Gadget reviewer | Gaming addict 🎮', 'https://i.pravatar.cc/150?img=15', 'public'),
