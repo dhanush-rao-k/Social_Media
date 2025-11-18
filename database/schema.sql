@@ -203,6 +203,63 @@ END //
 
 DELIMITER ;
 
+-- Enable event scheduler for auto-deletion of expired stories
+SET GLOBAL event_scheduler = ON;
+
+-- Procedure to permanently delete user account with cascading deletes
+DELIMITER //
+
+CREATE PROCEDURE DeleteUserAccount(IN p_user_id INT)
+BEGIN
+    DECLARE EXIT HANDLER FOR SQLEXCEPTION
+    BEGIN
+        ROLLBACK;
+        SIGNAL SQLSTATE '45000' SET MESSAGE_TEXT = 'Error deleting account';
+    END;
+    
+    START TRANSACTION;
+    
+    -- Delete from FollowRequests where user is requester or target
+    DELETE FROM FollowRequests WHERE RequesterUserID = p_user_id OR TargetUserID = p_user_id;
+    
+    -- Delete from ViewedStories
+    DELETE FROM ViewedStories WHERE StoryID IN (SELECT StoryID FROM Stories WHERE UserID = p_user_id) 
+                                 OR ViewerUserID = p_user_id;
+    
+    -- Delete user's stories
+    DELETE FROM Stories WHERE UserID = p_user_id;
+    
+    -- Delete from MessageSeen
+    DELETE FROM MessageSeen WHERE MessageID IN (
+        SELECT MessageID FROM Messages WHERE SenderID = p_user_id OR ReceiverID = p_user_id
+    );
+    
+    -- Delete user's messages
+    DELETE FROM Messages WHERE SenderID = p_user_id OR ReceiverID = p_user_id;
+    
+    -- Delete user's comments
+    DELETE FROM Comments WHERE UserID = p_user_id;
+    
+    -- Delete user's likes
+    DELETE FROM Likes WHERE UserID = p_user_id;
+    
+    -- Delete user's posts
+    DELETE FROM Posts WHERE UserID = p_user_id;
+    
+    -- Delete followers relationships (user as follower and as following)
+    DELETE FROM Followers WHERE FollowerUserID = p_user_id OR FollowingUserID = p_user_id;
+    
+    -- Delete friend relationships
+    DELETE FROM Friends WHERE UserID1 = p_user_id OR UserID2 = p_user_id;
+    
+    -- Delete user finally (this will cascade delete via foreign keys)
+    DELETE FROM Users WHERE UserID = p_user_id;
+    
+    COMMIT;
+END //
+
+DELIMITER ;
+
 -- ============================================
 -- SAMPLE DATA FOR TESTING
 -- ============================================

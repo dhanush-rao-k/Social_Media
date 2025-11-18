@@ -174,6 +174,75 @@ def get_user_privacy_setting(user_id):
         return result['PrivacySettings'] if result else 'public'
     return 'public'
 
+def delete_user_account(user_id):
+    """Permanently delete user account with cascading deletes"""
+    conn = get_db_connection()
+    if conn:
+        cursor = conn.cursor()
+        try:
+            # Call stored procedure for cascading delete
+            cursor.callproc('DeleteUserAccount', [user_id])
+            conn.commit()
+            cursor.close()
+            conn.close()
+            return True
+        except Error as e:
+            # If procedure doesn't exist, do manual cascade delete
+            try:
+                cursor = conn.cursor()
+                
+                # Delete follow requests
+                cursor.execute('DELETE FROM FollowRequests WHERE RequesterUserID = %s OR TargetUserID = %s', 
+                              (user_id, user_id))
+                
+                # Delete viewed stories
+                cursor.execute('''DELETE FROM ViewedStories WHERE StoryID IN 
+                                (SELECT StoryID FROM Stories WHERE UserID = %s) 
+                                OR ViewerUserID = %s''', (user_id, user_id))
+                
+                # Delete stories
+                cursor.execute('DELETE FROM Stories WHERE UserID = %s', (user_id,))
+                
+                # Delete message seen
+                cursor.execute('''DELETE FROM MessageSeen WHERE MessageID IN 
+                                (SELECT MessageID FROM Messages WHERE SenderID = %s OR ReceiverID = %s)''', 
+                              (user_id, user_id))
+                
+                # Delete messages
+                cursor.execute('DELETE FROM Messages WHERE SenderID = %s OR ReceiverID = %s', 
+                              (user_id, user_id))
+                
+                # Delete comments
+                cursor.execute('DELETE FROM Comments WHERE UserID = %s', (user_id,))
+                
+                # Delete likes
+                cursor.execute('DELETE FROM Likes WHERE UserID = %s', (user_id,))
+                
+                # Delete posts
+                cursor.execute('DELETE FROM Posts WHERE UserID = %s', (user_id,))
+                
+                # Delete followers
+                cursor.execute('DELETE FROM Followers WHERE FollowerUserID = %s OR FollowingUserID = %s', 
+                              (user_id, user_id))
+                
+                # Delete friends
+                cursor.execute('DELETE FROM Friends WHERE UserID1 = %s OR UserID2 = %s', 
+                              (user_id, user_id))
+                
+                # Delete user
+                cursor.execute('DELETE FROM Users WHERE UserID = %s', (user_id,))
+                
+                conn.commit()
+                cursor.close()
+                conn.close()
+                return True
+            except Error as e2:
+                st.error(f"Account deletion failed: {e2}")
+                cursor.close()
+                conn.close()
+                return False
+    return False
+
 def get_user_feed(user_id, limit=50):
     """Get user feed"""
     conn = get_db_connection()
@@ -1201,6 +1270,88 @@ def show_profile_page():
                         st.divider()
                 else:
                     st.info("No pending follow requests. Your account is ready to accept new followers!")
+        
+        st.divider()
+        
+        # Account Deletion Section
+        with st.expander("⚠️ Danger Zone", expanded=False):
+            st.write("### 🗑️ Delete Account")
+            st.warning("""
+            **This action cannot be undone!** 
+            
+            Deleting your account will:
+            - Remove all your posts and stories
+            - Remove all your messages
+            - Unfollow all users and remove all followers
+            - Delete all your comments and likes
+            - Permanently erase all your data from the database
+            """)
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if st.button("🗑️ Delete My Account", type="secondary"):
+                    st.session_state.show_delete_confirm = True
+            
+            with col2:
+                if st.button("Cancel", type="primary"):
+                    st.session_state.show_delete_confirm = False
+            
+            # Show confirmation if button was clicked
+            if st.session_state.get('show_delete_confirm', False):
+                st.divider()
+                st.error("⚠️ **Final Confirmation Required**")
+                
+                # Require password verification
+                password = st.text_input("Enter your password to confirm deletion:", type="password", key="delete_confirm_password")
+                
+                # Type username to double-confirm
+                username_confirm = st.text_input("Type your username to confirm:", key="delete_confirm_username")
+                
+                col1, col2 = st.columns(2)
+                
+                with col1:
+                    if st.button("✅ Yes, Delete Everything", type="primary", key="confirm_delete"):
+                        # Verify password
+                        if not password:
+                            st.error("Please enter your password")
+                        elif username_confirm != st.session_state.username:
+                            st.error(f"Username doesn't match. Please type '{st.session_state.username}' exactly")
+                        else:
+                            # Verify password matches
+                            conn = get_db_connection()
+                            if conn:
+                                cursor = conn.cursor(dictionary=True)
+                                cursor.execute(
+                                    'SELECT PasswordHash FROM Users WHERE UserID = %s',
+                                    (st.session_state.user_id,)
+                                )
+                                user = cursor.fetchone()
+                                cursor.close()
+                                conn.close()
+                                
+                                if user and bcrypt.checkpw(password.encode('utf-8'), user['PasswordHash'].encode('utf-8')):
+                                    # Password verified, proceed with deletion
+                                    if delete_user_account(st.session_state.user_id):
+                                        st.success("✅ Your account has been permanently deleted.")
+                                        st.info("You will be redirected to the login page in 2 seconds...")
+                                        # Clear session state
+                                        st.session_state.user_id = None
+                                        st.session_state.username = None
+                                        st.session_state.show_delete_confirm = False
+                                        import time
+                                        time.sleep(2)
+                                        st.rerun()
+                                    else:
+                                        st.error("Failed to delete account. Please try again.")
+                                else:
+                                    st.error("❌ Incorrect password. Deletion cancelled.")
+                                    st.session_state.show_delete_confirm = False
+                
+                with col2:
+                    if st.button("❌ Cancel Deletion", key="cancel_delete"):
+                        st.session_state.show_delete_confirm = False
+                        st.rerun()
         
         st.divider()
         
