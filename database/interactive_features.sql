@@ -1,4 +1,3 @@
--- Interactive features: counts and triggers
 USE SOCIAL_MEDIA;
 
 -- Add counters to Posts if not present

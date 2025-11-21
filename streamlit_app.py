@@ -1,7 +1,4 @@
-"""
-Streamlit Frontend for Social Media Platform
-Connects to existing MySQL database with stored procedures
-"""
+
 import streamlit as st
 import mysql.connector
 from mysql.connector import Error

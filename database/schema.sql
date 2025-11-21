@@ -191,7 +191,6 @@ END //
 DELIMITER ;
 
 -- Event to delete expired stories (run every hour)
--- Note: You need to enable event scheduler: SET GLOBAL event_scheduler = ON;
 DELIMITER //
 
 CREATE EVENT IF NOT EXISTS DeleteExpiredStories

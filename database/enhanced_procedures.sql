@@ -1,15 +1,8 @@
--- ============================================
--- ENHANCED STORED PROCEDURES FOR MYSQL-HEAVY BACKEND
--- All business logic is handled at database layer
--- ============================================
 
 USE SOCIAL_MEDIA;
 
 DELIMITER //
 
--- ============================================
--- USER AUTHENTICATION & REGISTRATION
--- ============================================
 
 -- User Login Procedure
 DROP PROCEDURE IF EXISTS UserLogin//
@@ -50,9 +43,6 @@ BEGIN
     SELECT new_user_id AS UserID, p_username AS Username;
 END//
 
--- ============================================
--- POST MANAGEMENT
--- ============================================
 
 -- Create Post Procedure
 DROP PROCEDURE IF EXISTS CreatePost//
@@ -91,9 +81,6 @@ BEGIN
     COMMIT;
 END//
 
--- ============================================
--- LIKES & COMMENTS
--- ============================================
 
 -- Toggle Like Procedure
 DROP PROCEDURE IF EXISTS ToggleLike//
@@ -190,9 +177,6 @@ BEGIN
     RETURN like_count;
 END//
 
--- ============================================
--- FOLLOW SYSTEM
--- ============================================
 
 -- Toggle Follow Procedure
 DROP PROCEDURE IF EXISTS ToggleFollow//
@@ -264,9 +248,6 @@ BEGIN
     RETURN is_following;
 END//
 
--- ============================================
--- MESSAGING SYSTEM
--- ============================================
 
 -- Send Message Procedure
 DROP PROCEDURE IF EXISTS SendMessage//
@@ -350,9 +331,6 @@ BEGIN
     CALL MarkMessageSeen(p_user2_id, p_user1_id);
 END//
 
--- ============================================
--- STORY SYSTEM
--- ============================================
 
 -- Create Story Procedure
 DROP PROCEDURE IF EXISTS CreateStory//
@@ -416,10 +394,6 @@ BEGIN
     VALUES (p_story_id, p_user_id, NOW());
 END//
 
--- ============================================
--- SEARCH FUNCTIONALITY
--- ============================================
-
 -- Search Users
 DROP PROCEDURE IF EXISTS SearchUsers//
 CREATE PROCEDURE SearchUsers(
@@ -464,10 +438,6 @@ BEGIN
     ORDER BY po.Timestamp DESC
     LIMIT 20;
 END//
-
--- ============================================
--- PROFILE MANAGEMENT
--- ============================================
 
 -- Get User Profile
 DROP PROCEDURE IF EXISTS GetUserProfile//
@@ -538,9 +508,6 @@ END//
 
 DELIMITER ;
 
--- ============================================
--- ADDITIONAL TRIGGERS
--- ============================================
 
 DELIMITER //
 
@@ -550,8 +517,6 @@ CREATE TRIGGER AfterCommentInsert
 AFTER INSERT ON Comments
 FOR EACH ROW
 BEGIN
-    -- Could update a cache table or send notification
-    -- For now, just a placeholder for future enhancements
     SET @comment_added = NEW.CommentID;
 END//
 
@@ -588,7 +553,3 @@ BEGIN
 END//
 
 DELIMITER ;
-
--- ============================================
--- END OF ENHANCED PROCEDURES
--- ============================================
